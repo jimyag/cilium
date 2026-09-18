@@ -207,15 +207,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" \
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            release_is_draft=$(gh release view "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
+              --json isDraft \
+              --jq .isDraft)
+            if [[ "$release_is_draft" != true ]]; then
+              echo "::error::Release ${RELEASE_TAG} is already published and cannot be updated"
+              exit 1
+            fi
+
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
               --prerelease \
               --title "$RELEASE_TAG" \
               --notes-file release-notes.md
           else
-            gh release edit "$RELEASE_TAG" \
+            gh release create "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --prerelease \
+              --title "$RELEASE_TAG" \
               --notes-file release-notes.md
           fi
 
@@ -224,3 +237,8 @@ jobs:
             --clobber \
             image-digests.md \
             release-assets/*
+
+          gh release edit "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --prerelease
